@@ -34,6 +34,22 @@ public class Config {
     private Map<String, List<String>> pathSets;
 
     /**
+     * A regex pattern for user names to report statistics for.
+     * If not set, statistics for all users are reported.
+     */
+    private String userNameRegex;
+
+    /**
+     * If set, run in one-shot mode processing a single fsimage file and printing metrics to STDOUT.
+     */
+    private boolean oneShot = false;
+
+    /**
+     * The fsimage file to process in one-shot mode.
+     */
+    private String fsImageFile;
+
+    /**
      * Skip file size distribution for group stats.
      */
     private boolean skipFileDistributionForGroupStats = false;
@@ -104,6 +120,34 @@ public class Config {
 
     public void setPathSets(Map<String, List<String>> pathSets) {
         this.pathSets = pathSets;
+    }
+
+    public String getUserNameRegex() {
+        return userNameRegex;
+    }
+
+    public void setUserNameRegex(String userNameRegex) {
+        this.userNameRegex = userNameRegex;
+    }
+
+    public boolean hasUserNameRegex() {
+        return userNameRegex != null && !userNameRegex.isEmpty();
+    }
+
+    public boolean isOneShot() {
+        return oneShot;
+    }
+
+    public void setOneShot(boolean oneShot) {
+        this.oneShot = oneShot;
+    }
+
+    public String getFsImageFile() {
+        return fsImageFile;
+    }
+
+    public void setFsImageFile(String fsImageFile) {
+        this.fsImageFile = fsImageFile;
     }
 
     public boolean hasPathSets() {

@@ -344,8 +344,20 @@ public class FsImageReporter {
         Report report = new Report(config);
         final OverallStats overallStats = report.overallStats;
 
+        final Pattern userNamePattern;
+        if (config.hasUserNameRegex()) {
+            userNamePattern = Pattern.compile(config.getUserNameRegex());
+            LOG.info("Filtering user stats with user name regex pattern {}", config.getUserNameRegex());
+        } else {
+            userNamePattern = null;
+        }
+
         long t = System.currentTimeMillis();
         new FsVisitor.Builder().parallel().visit(fsImageData, new FsVisitor() {
+            private boolean isUserIncluded(String userName) {
+                return null == userNamePattern || userNamePattern.matcher(userName).matches();
+            }
+
             @Override
             public void onFile(FsImageProto.INodeSection.INode inode, String path) {
                 FsImageProto.INodeSection.INodeFile f = inode.getFile();
@@ -368,11 +380,13 @@ public class FsImageReporter {
 
                 // User stats
                 final String userName = p.getUserName();
-                UserStats userStat = report.userStats.computeIfAbsent(userName, report.createUserStat);
-                userStat.sumBlocks.add(fileBlocks);
-                userStat.fileSize.observe(fileSize);
-                userStat.fileConsumedSize.observe(fileConsumedSize);
-                userStat.replication.observe(f.getReplication());
+                if (isUserIncluded(userName)) {
+                    UserStats userStat = report.userStats.computeIfAbsent(userName, report.createUserStat);
+                    userStat.sumBlocks.add(fileBlocks);
+                    userStat.fileSize.observe(fileSize);
+                    userStat.fileConsumedSize.observe(fileConsumedSize);
+                    userStat.replication.observe(f.getReplication());
+                }
             }
 
             @Override
@@ -391,8 +405,10 @@ public class FsImageReporter {
 
                 // User stats
                 final String userName = p.getUserName();
-                final UserStats userStat = report.userStats.computeIfAbsent(userName, report.createUserStat);
-                userStat.sumDirectories.increment();
+                if (isUserIncluded(userName)) {
+                    final UserStats userStat = report.userStats.computeIfAbsent(userName, report.createUserStat);
+                    userStat.sumDirectories.increment();
+                }
 
                 overallStats.sumDirectories.increment();
             }
@@ -409,8 +425,10 @@ public class FsImageReporter {
 
                 // User stats
                 final String userName = p.getUserName();
-                final UserStats userStat = report.userStats.computeIfAbsent(userName, report.createUserStat);
-                userStat.sumSymLinks.increment();
+                if (isUserIncluded(userName)) {
+                    final UserStats userStat = report.userStats.computeIfAbsent(userName, report.createUserStat);
+                    userStat.sumSymLinks.increment();
+                }
 
                 overallStats.sumSymLinks.increment();
             }
