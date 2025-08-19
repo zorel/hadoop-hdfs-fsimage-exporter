@@ -26,6 +26,8 @@ class FsImageUpdateHandler {
     private static final String METRIC_POSTFIX_DIRS = "dirs";
     private static final String METRIC_POSTFIX_BLOCKS = "blocks";
     private static final String METRIC_POSTFIX_LINKS = "links";
+    private static final String METRIC_POSTFIX_NSQUOTA = "nsquota_sum";
+    private static final String METRIC_POSTFIX_DSQUOTA = "dsquota_sum_bytes";
     static final String FSIZE = "fsize";
     static final String CSIZE = "csize";
     static final String REPLICATION = "replication";
@@ -34,12 +36,16 @@ class FsImageUpdateHandler {
     private static final String HELP_NUMBER_OF_SYM_LINKS = "Number of sym links.";
     private static final String HELP_NUMBER_OF_DIRECTORIES = "Number of directories.";
     private static final String HELP_NUMBER_OF_BLOCKS = "Number of blocks.";
+    private static final String HELP_NSQUOTA = "Sum of namespace quotas.";
+    private static final String HELP_DSQUOTA = "Sum of diskspace quotas in bytes.";
 
     static class FsMetrics {
         private static final String[] EMPTY_LABEL_NAMES = new String[]{};
         private final Gauge sumDirs;
         private final Gauge sumLinks;
         private final Gauge sumBlocks;
+        private final Gauge sumNsQuota;
+        private final Gauge sumDsQuota;
 
         FsMetrics(String prefix, String[] labelNames) {
             sumDirs = Gauge.build()
@@ -54,6 +60,14 @@ class FsImageUpdateHandler {
                     .name(prefix + METRIC_POSTFIX_BLOCKS)
                     .labelNames(labelNames)
                     .help(HELP_NUMBER_OF_BLOCKS).create();
+            sumNsQuota = Gauge.build()
+                    .name(prefix + METRIC_POSTFIX_NSQUOTA)
+                    .labelNames(labelNames)
+                    .help(HELP_NSQUOTA).create();
+            sumDsQuota = Gauge.build()
+                    .name(prefix + METRIC_POSTFIX_DSQUOTA)
+                    .labelNames(labelNames)
+                    .help(HELP_DSQUOTA).create();
         }
 
         FsMetrics(String prefix) {
@@ -65,10 +79,14 @@ class FsImageUpdateHandler {
                 sumDirs.set(fsStats.sumDirectories.doubleValue());
                 sumLinks.set(fsStats.sumSymLinks.doubleValue());
                 sumBlocks.set(fsStats.sumBlocks.doubleValue());
+                sumNsQuota.set(fsStats.sumNsQuota.doubleValue());
+                sumDsQuota.set(fsStats.sumDsQuota.doubleValue());
             } else {
                 sumDirs.labels(labelValues).set(fsStats.sumDirectories.doubleValue());
                 sumLinks.labels(labelValues).set(fsStats.sumSymLinks.doubleValue());
                 sumBlocks.labels(labelValues).set(fsStats.sumBlocks.doubleValue());
+                sumNsQuota.labels(labelValues).set(fsStats.sumNsQuota.doubleValue());
+                sumDsQuota.labels(labelValues).set(fsStats.sumDsQuota.doubleValue());
             }
         }
 
@@ -76,6 +94,8 @@ class FsImageUpdateHandler {
             mfs.addAll(sumDirs.collect());
             mfs.addAll(sumBlocks.collect());
             mfs.addAll(sumLinks.collect());
+            mfs.addAll(sumNsQuota.collect());
+            mfs.addAll(sumDsQuota.collect());
         }
     }
 

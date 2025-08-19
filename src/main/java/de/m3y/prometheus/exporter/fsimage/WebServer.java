@@ -16,6 +16,7 @@ import org.yaml.snakeyaml.Yaml;
 
 import java.io.*;
 import java.util.ArrayList;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.net.InetSocketAddress;
 
@@ -111,18 +112,19 @@ public class WebServer {
         }
 
         File fsImageFile = new File(fsImageFilePath);
-        RandomAccessFile randomAccessFile = new RandomAccessFile(fsImageFile, "r");
         if (!fsImageFile.exists() || !fsImageFile.isFile()) {
             LOG.error("FSImage file does not exist or is not a file: {}", fsImageFilePath);
             System.exit(1);
         }
-
         LOG.info("One-shot mode: processing {}", fsImageFilePath);
 
         // Load FsImage
         LOG.info("Loading fsimage from {}", fsImageFilePath);
         long startTime = System.nanoTime();
-        FsImageData fsImageData = new FsImageLoader.Builder().build().load(randomAccessFile);
+        final FsImageData fsImageData;
+        try (RandomAccessFile randomAccessFile = new RandomAccessFile(fsImageFile, "r")) {
+            fsImageData = new FsImageLoader.Builder().build().load(randomAccessFile);
+        }
         LOG.info("Finished loading fsimage in {}ms", (System.nanoTime() - startTime) / 1_000_000);
 
         // Compute stats
@@ -141,48 +143,95 @@ public class WebServer {
         CollectorRegistry registry = new CollectorRegistry();
 
         // Register build info
-        Info info = Info.build()
+        Info.build()
                 .name("fsimage_exporter_build")
                 .help("Hadoop FSImage exporter build info")
                 .labelNames("appVersion", "buildTime", "buildScmVersion", "buildScmBranch")
-                .register(registry);
-
-        info.labels(
-                BuildMetaInfo.INSTANCE.getVersion(),
-                BuildMetaInfo.INSTANCE.getBuildTimeStamp(),
-                BuildMetaInfo.INSTANCE.getBuildScmVersion(),
-                BuildMetaInfo.INSTANCE.getBuildScmBranch()
-        );
+                .register(registry)
+                .labels(
+                        BuildMetaInfo.INSTANCE.getVersion(),
+                        BuildMetaInfo.INSTANCE.getBuildTimeStamp(),
+                        BuildMetaInfo.INSTANCE.getBuildScmVersion(),
+                        BuildMetaInfo.INSTANCE.getBuildScmBranch()
+                );
 
         // Add metadata metrics
-        Gauge fsimage_last_run_success_time = Gauge.build()
+        Gauge.build()
                 .name("fsimage_last_run_success_time")
                 .help("Timestamp of last successful FSImage processing run.")
-                .register(registry);
+                .register(registry)
+                .setToCurrentTime();
 
-        fsimage_last_run_success_time.setToCurrentTime();
-
-        Gauge fsimage_last_run_duration_seconds = Gauge.build()
+        Gauge.build()
                 .name("fsimage_last_run_duration_seconds")
                 .help("Duration of last FSImage processing run in seconds.")
-                .register(registry);
+                .register(registry)
+                .set(durationMs / 1000.0);
 
-        fsimage_last_run_duration_seconds.set(durationMs / 1000.0);
+        // Register a single collector that mimics FsImageUpdateHandler
+        final FsImageUpdateHandler.FsMetrics overall = new FsImageUpdateHandler.FsMetrics(
+                FsImageCollector.METRIC_PREFIX);
+        final FsImageUpdateHandler.FsMetrics userFsMetrics = new FsImageUpdateHandler.FsMetrics(FsImageUpdateHandler.METRIC_PREFIX_USER,
+                new String[]{FsImageUpdateHandler.LABEL_USER_NAME});
+        final FsImageUpdateHandler.FsMetrics groupFsMetrics = new FsImageUpdateHandler.FsMetrics(FsImageUpdateHandler.METRIC_PREFIX_GROUP,
+                new String[]{FsImageUpdateHandler.LABEL_GROUP_NAME});
+        final FsImageUpdateHandler.FsMetrics pathFsMetrics = new FsImageUpdateHandler.FsMetrics(FsImageUpdateHandler.METRIC_PREFIX_PATH,
+                new String[]{FsImageUpdateHandler.LABEL_PATH});
+        final FsImageUpdateHandler.FsMetrics pathSetFsMetrics = new FsImageUpdateHandler.FsMetrics(FsImageUpdateHandler.METRIC_PREFIX_PATH_SET,
+                new String[]{FsImageUpdateHandler.LABEL_PATH_SET});
 
-        // Register report metrics
+        // Populate the gauges
+        overall.update(report.overallStats);
+        for (FsImageReporter.UserStats userStat : report.userStats.values()) {
+            userFsMetrics.update(userStat, userStat.userName);
+        }
+        for (FsImageReporter.GroupStats groupStat : report.groupStats.values()) {
+            groupFsMetrics.update(groupStat, groupStat.groupName);
+        }
+        if (report.hasPathStats()) {
+            for (FsImageReporter.PathStats pathStat : report.pathStats.values()) {
+                pathFsMetrics.update(pathStat, pathStat.path);
+            }
+        }
+        if (report.hasPathSetStats()) {
+            for (FsImageReporter.PathStats pathStat : report.pathSetStats.values()) {
+                pathSetFsMetrics.update(pathStat, pathStat.path);
+            }
+        }
         registry.register(new Collector() {
             @Override
             public List<Collector.MetricFamilySamples> collect() {
                 List<Collector.MetricFamilySamples> mfs = new ArrayList<>();
+
+                // Collect gauges
+                overall.collect(mfs);
+                userFsMetrics.collect(mfs);
+                groupFsMetrics.collect(mfs);
+                if (report.hasPathStats()) {
+                    pathFsMetrics.collect(mfs);
+                }
+                if (report.hasPathSetStats()) {
+                    pathSetFsMetrics.collect(mfs);
+                }
+
+                // Collect histograms and summaries from the report
                 report.collect(mfs);
+
                 return mfs;
             }
         });
 
-        // Write to stdout
-        try (Writer writer = new BufferedWriter(new OutputStreamWriter(System.out))) {
+        // Write to configured output file or to STDOUT
+        final String outputFile = config.getOneShotOutputFile();
+        final String destination = (outputFile != null && !outputFile.isEmpty()) ? outputFile : "STDOUT";
+
+        // Note: This will close System.out when writing to STDOUT, which is generally bad practice.
+        // However, in one-shot mode, the application exits immediately after, so it has no negative effect.
+        try (Writer writer = (outputFile != null && !outputFile.isEmpty())
+                ? new BufferedWriter(new OutputStreamWriter(new FileOutputStream(outputFile), StandardCharsets.UTF_8))
+                : new BufferedWriter(new OutputStreamWriter(System.out, StandardCharsets.UTF_8))) {
             TextFormat.write004(writer, registry.metricFamilySamples());
         }
-        LOG.info("Successfully wrote metrics to STDOUT.");
+        LOG.info("Successfully wrote metrics to {}.", destination);
     }
 }

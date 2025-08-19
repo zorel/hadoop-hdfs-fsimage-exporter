@@ -1,6 +1,8 @@
-# Path where HDFS NameNode stores the fsimage files
-# See https://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-hdfs/hdfs-default.xml#dfs.namenode.name.dir
-fsImagePath : 'src/test/resources'
+# --- Server Mode Configuration ---
+# (These settings are ignored if oneShot is true)
+#
+# fsImagePath: 'src/test/resources' # Path where NameNode stores fsimage files
+
 # Skip file size distribution for group based stats
 skipFileDistributionForGroupStats : true
 # Skip file size distribution for user based stats
@@ -10,24 +12,29 @@ skipFileDistributionForUserStats : false
 # Compute per path stats
 # Supports regex matching for direct child directories
 paths:
-  - '/tmp'
-  - '/datalake/a.*'
-  - '/user/m.*'
+  - '/tmp/'
+  - '/app-logs/.*/'
+  - '/apps/spark/warehouse/.*/.*/.*/'
+  - '/apps/trino/.*/.*/.*/'
+  - '/ranger/.*/.*/'
+  - '/user/hivedb-.*/'
+  - '/user/hivedb-.*/.Trash/'
+  - '/apps/.*/.*/'
 # Skip file size distribution for path based stats
-skipFileDistributionForPathStats : true
+skipFileDistributionForPathStats : false
 
 # Path sets are grouped paths by an identifier
 pathSets:
-  'userMmAndFooAndAsset1' : [
-    '/datalake/asset3',
-    '/user/mm',
-    '/user/foo'
-    ]
-  'datalakeAsset1and2' : [
-    '/datalake/asset1',
-    '/datalake/asset2'
-    ]
+
 # Skip file size distribution for path sets based stats
 skipFileDistributionForPathSetStats : true
 # Configure file size distribution buckets, supporting IEC units of KiB, MiB, GiB, TiB, PiB
-fileSizeDistributionBuckets: ['0','1MiB', '32MiB', '64MiB', '128MiB', '1GiB', '10GiB']
+fileSizeDistributionBuckets: ['0','2MiB', '32MiB', '64MiB', '128MiB', '1GiB', '10GiB']
+
+# --- One-Shot Mode Configuration ---
+# If oneShot is true, the application processes a single fsimage file and prints metrics to STDOUT, then exits.
+oneShot: true
+# The fsimage file to process in one-shot mode. Required if oneShot is true.
+fsImageFile : '/Users/aurelien/current_image_2025-08-07_12.raw'
+# A regex pattern for user names to report statistics for.
+userNameRegex : 'hivedb-.*'

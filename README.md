@@ -181,7 +181,9 @@ The metrics follow the naming and labelling pattern fsimage_[*AGG*_][*NAME*_]_[*
   * `blocks` for number of file data blocks
   * `dirs` for tracking number of files 
   * `links` for tracking number of symbolic links 
- 
+  * `nsquota_sum` for tracking sum of namespace quotas
+  * `dsquota_sum_bytes` for tracking sum of diskspace quotas
+
 * *METRIC TYPE SPECIFIC* depends on metric type ([Counter, Gauge, Histogram, Summary ...](https://prometheus.io/docs/concepts/metric_types/)) 
  
 ### Details
@@ -216,6 +218,16 @@ The metrics follow the naming and labelling pattern fsimage_[*AGG*_][*NAME*_]_[*
   * Tracks number of filesystem links
   * Type: [Gauge](https://prometheus.io/docs/concepts/metric_types/#gauge)
   * fsimage_[*AGG*_]links
+
+* Quota `nsquota_sum`
+  * Tracks sum of namespace quotas
+  * Type: Gauge
+  * fsimage_[*AGG*_]nsquota_sum
+
+* Quota `dsquota_sum_bytes`
+  * Tracks sum of diskspace quotas in bytes
+  * Type: Gauge
+  * fsimage_[*AGG*_]dsquota_sum_bytes
 
 ### Exporter internal metrics
 

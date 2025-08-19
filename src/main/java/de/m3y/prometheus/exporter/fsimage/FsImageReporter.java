@@ -85,6 +85,8 @@ public class FsImageReporter {
         final LongAdder sumSymLinks = new LongAdder();
         final MetricAdapter fileSize;
         final MetricAdapter fileConsumedSize;
+        final LongAdder sumNsQuota = new LongAdder();
+        final LongAdder sumDsQuota = new LongAdder();
 
         protected AbstractFileSystemStats(MetricAdapter fileSize, MetricAdapter fileConsumedSize) {
             this.fileSize = fileSize;
@@ -398,19 +400,32 @@ public class FsImageReporter {
                             path + ("/".equals(path) ? "" : "/") + inode.getName().toStringUtf8());
                 }
 
+                final long nsQuota = d.getNsQuota();
+                final long dsQuota = d.getDsQuota();
+
                 // Group stats
                 final String groupName = p.getGroupName();
                 final GroupStats groupStat = report.groupStats.computeIfAbsent(groupName, report.createGroupStats);
                 groupStat.sumDirectories.increment();
+                if (nsQuota > -1) groupStat.sumNsQuota.add(nsQuota);
+                if (dsQuota > -1) groupStat.sumDsQuota.add(dsQuota);
 
                 // User stats
                 final String userName = p.getUserName();
                 if (isUserIncluded(userName)) {
                     final UserStats userStat = report.userStats.computeIfAbsent(userName, report.createUserStat);
                     userStat.sumDirectories.increment();
+                    if (nsQuota > -1) userStat.sumNsQuota.add(nsQuota);
+                    if (dsQuota > -1) userStat.sumDsQuota.add(dsQuota);
                 }
 
                 overallStats.sumDirectories.increment();
+                if (nsQuota > -1) {
+                    overallStats.sumNsQuota.add(nsQuota);
+                }
+                if (dsQuota > -1) {
+                    overallStats.sumDsQuota.add(dsQuota);
+                }
             }
 
             @Override
@@ -452,6 +467,19 @@ public class FsImageReporter {
             try {
                 long t = System.currentTimeMillis();
                 final PathStats pathStats = report.pathStats.computeIfAbsent(p, report.createPathStat);
+
+                final FsImageProto.INodeSection.INode inode = fsImageData.getINodeFromPath(p);
+                if (inode.hasDirectory()) {
+                    final FsImageProto.INodeSection.INodeDirectory d = inode.getDirectory();
+                    final long nsQuota = d.getNsQuota();
+                    if (nsQuota > -1) {
+                        pathStats.sumNsQuota.add(nsQuota);
+                    }
+                    final long dsQuota = d.getDsQuota();
+                    if (dsQuota > -1) {
+                        pathStats.sumDsQuota.add(dsQuota);
+                    }
+                }
                 new FsVisitor.Builder().visit(fsImageData, new PathStatVisitor(pathStats), p);
                 // Subtract start dir, as only child dirs count
                 pathStats.sumDirectories.decrement();
@@ -484,6 +512,18 @@ public class FsImageReporter {
             final PathStats pathStats = report.pathSetStats.computeIfAbsent(entry.getKey(), report.createPathSetStat);
             final PathStatVisitor visitor = new PathStatVisitor(pathStats);
             for (String path : expandedPaths) {
+                final FsImageProto.INodeSection.INode inode = fsImageData.getINodeFromPath(path);
+                if (inode.hasDirectory()) {
+                    final FsImageProto.INodeSection.INodeDirectory d = inode.getDirectory();
+                    final long nsQuota = d.getNsQuota();
+                    if (nsQuota > -1) {
+                        pathStats.sumNsQuota.add(nsQuota);
+                    }
+                    final long dsQuota = d.getDsQuota();
+                    if (dsQuota > -1) {
+                        pathStats.sumDsQuota.add(dsQuota);
+                    }
+                }
                 builder.visit(fsImageData, visitor, path);
             }
             // Subtract number of start dirs, as only child dirs count

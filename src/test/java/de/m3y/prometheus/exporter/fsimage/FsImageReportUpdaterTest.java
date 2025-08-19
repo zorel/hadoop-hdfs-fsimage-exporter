@@ -32,6 +32,6 @@ public class FsImageReportUpdaterTest {
 
         List<Collector.MetricFamilySamples> mfs = new ArrayList<>();
         fsImageReportUpdater.collectFsImageSamples(mfs);
-        assertThat(mfs).hasSize(20);
+        assertThat(mfs).hasSize(26);
     }
 }

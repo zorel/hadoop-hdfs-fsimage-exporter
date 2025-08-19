@@ -142,6 +142,16 @@ public class Config {
         this.oneShot = oneShot;
     }
 
+    private String oneShotOutputFile;
+
+    public String getOneShotOutputFile() {
+        return oneShotOutputFile;
+    }
+
+    public void setOneShotOutputFile(String oneShotOutputFile) {
+        this.oneShotOutputFile = oneShotOutputFile;
+    }
+
     public String getFsImageFile() {
         return fsImageFile;
     }
